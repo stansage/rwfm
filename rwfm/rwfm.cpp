@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "rwfm.h"
+#include "precisetimer.hpp"
 
 int selectedView = 0;
-std::unordered_map<int, std::pair<LPVOID, HANDLE>> views;
+std::unordered_map<int, std::pair<char*, HANDLE>> views;
 std::random_device random;
 std::default_random_engine rengine(random());
 std::uniform_int_distribution<int> rdistribution(1, 2147483647);
@@ -37,7 +38,7 @@ RWFM_API int openView(const TCHAR name[], int * error)
 		selectedView = rdistribution(rengine);
 	} while (views.find(selectedView) != views.end());
 	
-	views[selectedView] = std::make_pair(buffer, handle);
+	views[selectedView] = std::make_pair(reinterpret_cast<char*>(buffer), handle);
 	
 	return selectedView;
 }
@@ -65,3 +66,18 @@ RWFM_API bool closeView()
 	selectedView = 0;
 	return true;
 }
+
+RWFM_API void getData(int position, char buffer[], int offset, int length){	const auto iterator = views.find(selectedView);
+	if (iterator != views.end()) {
+		CopyMemory(buffer + offset, iterator->second.first + position, length);
+	}}RWFM_API void setData(int position, char buffer[], int offset, int length){	const auto iterator = views.find(selectedView);
+	if (iterator != views.end()) {
+		CopyMemory(iterator->second.first + position, buffer + offset, length);
+	}}RWFM_API long getAndAddLong(int position, long delta){	const auto iterator = views.find(selectedView);
+	if (iterator != views.end()) {
+		return InterlockedExchangeAdd(reinterpret_cast<long*>(iterator->second.first + position), delta);
+	}	return -1;}RWFM_API long getLong(int position){	const auto iterator = views.find(selectedView);
+	if (iterator != views.end()) {
+		return *reinterpret_cast<long*>(iterator->second.first + position);
+	}	return -1;}RWFM_API long waitNewLong(int position, long current, long parkNanos, long timeoutMills){	auto result = -1l;	const auto iterator = views.find(selectedView);
+	if (iterator != views.end()) {		PreciseTimer timer;		while (timer.elapsed() < timeoutMills) {			result = *reinterpret_cast<long*>(iterator->second.first + position);			if (result != current) {				return result;			}			timer.wait(parkNanos);		}	}	return result;}

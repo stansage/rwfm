@@ -1,9 +1,5 @@
-// The following ifdef block is the standard way of creating macros which make exporting 
-// from a DLL simpler. All files within this DLL are compiled with the RWFM_EXPORTS
-// symbol defined on the command line. This symbol should not be defined on any project
-// that uses this DLL. This way any other project whose source files include this file see 
-// RWFM_API functions as being imported from a DLL, whereas this DLL sees symbols
-// defined with this macro as being exported.
+#pragma once
+
 #ifdef RWFM_EXPORTS
 #define RWFM_API __declspec(dllexport)
 #else
@@ -26,6 +22,8 @@ extern "C" {
 	RWFM_API int openView(const TCHAR path[], int * error);
 	RWFM_API bool selectView(int view);
 	RWFM_API bool closeView();
+	RWFM_API void getData(int position, char buffer[], int offset, int length);	RWFM_API void setData(int position, char buffer[], int offset, int length);	RWFM_API long getAndAddLong(int position, long delta);	RWFM_API long getLong(int position);	RWFM_API long waitNewLong(int position, long current, long parkNanos, long timeoutMills);
+
 
 #ifdef __cplusplus
 }

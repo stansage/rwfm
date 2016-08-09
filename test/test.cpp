@@ -52,21 +52,22 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			const auto current = getLong(123);
-			auto value = waitNewLong(123, current, 100, 1000);
+			auto value = waitNewLong(123, current, 10, 1000);
 
 			if (value != current) {
 				std::cerr << "Fail: " << value << " != " << current << std::endl;
 			} else {
 				std::thread thread([] {
-					Sleep(1300);
+					Sleep(13000);
 					char buffer[] = { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
 					setData(123, buffer, 4, 3);
 				});
-
-				value = waitNewLong(123, current, 100, 3000);
+				
+				value = waitNewLong(123, current, 0, 30000);
 				if (value == current) {
 					std::cerr << "Fail: " << value << " == " << current << std::endl;
 				}
+				thread.join();
 			}
 		}
 

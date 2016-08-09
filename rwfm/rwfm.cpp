@@ -2,11 +2,8 @@
 #include "rwfm.h"
 #include "precisetimer.hpp"
 
-int selectedView = 0;
-std::unordered_map<int, std::pair<char*, HANDLE>> views;
-std::random_device random;
-std::default_random_engine rengine(random());
-std::uniform_int_distribution<int> rdistribution(1, 2147483647);
+char * selectedView = 0;
+std::unordered_map<view_t, HANDLE> viewHandles;
 
 int raiseError(int * error)
 {
@@ -16,7 +13,12 @@ int raiseError(int * error)
 	return 0;
 }
 
-RWFM_API int openView(const TCHAR name[], int * error)
+long * getLongPtr(int position)
+{
+    return reinterpret_cast<long*>(selectedView + position);
+}
+
+RWFM_API view_t openView(const TCHAR name[], int * error)
 {
 	if (name == nullptr) {
 		return raiseError(error);
@@ -27,57 +29,81 @@ RWFM_API int openView(const TCHAR name[], int * error)
 		return raiseError(error);
 	}
 
-	const auto buffer = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+        const auto buffer = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0);
 
 	if (buffer == nullptr) {
 		CloseHandle(handle);
 		return raiseError(error);
 	}
 
-	do {
-		selectedView = rdistribution(rengine);
-	} while (views.find(selectedView) != views.end());
-	
-	views[selectedView] = std::make_pair(reinterpret_cast<char*>(buffer), handle);
-	
-	return selectedView;
+        const auto result = reinterpret_cast<view_t>(buffer);
+        selectedView = reinterpret_cast<char*>(result);
+        viewHandles[result] = handle;
+
+        return result;
 }
 
-RWFM_API bool selectView(int view)
+RWFM_API bool selectView(view_t view)
 {
-	if (views.find(view) == views.end()) {
-		return false;
-	}
+        auto result = false;
+        const auto iterator = viewHandles.find(view);
 
-	selectedView = view;
-	return true;
+        if (iterator != viewHandles.end()) {
+                selectedView = reinterpret_cast<char*>(view);
+                result = true;
+        }
+
+        return result;
 }
 
 RWFM_API bool closeView()
 {
-	const auto iterator = views.find(selectedView);
-	if (iterator == views.end()) {
-		return false;
-	}
+        auto result = false;
+        const auto iterator = viewHandles.find(reinterpret_cast<view_t>(selectedView));
 
-	UnmapViewOfFile(iterator->second.first);
-	CloseHandle(iterator->second.second);
-	views.erase(iterator);
-	selectedView = 0;
-	return true;
+        if (iterator != viewHandles.end()) {
+                UnmapViewOfFile(selectedView);
+                CloseHandle(iterator->second);
+                views.erase(iterator);
+                selectedView = nullptr;
+                result = true;
+        }
+
+        return result;
 }
 
-RWFM_API void getData(int position, char buffer[], int offset, int length){	const auto iterator = views.find(selectedView);
-	if (iterator != views.end()) {
-		CopyMemory(buffer + offset, iterator->second.first + position, length);
-	}}RWFM_API void setData(int position, char buffer[], int offset, int length){	const auto iterator = views.find(selectedView);
-	if (iterator != views.end()) {
-		CopyMemory(iterator->second.first + position, buffer + offset, length);
-	}}RWFM_API long getAndAddLong(int position, long delta){	const auto iterator = views.find(selectedView);
-	if (iterator != views.end()) {
-		return InterlockedExchangeAdd(reinterpret_cast<long*>(iterator->second.first + position), delta);
-	}	return -1;}RWFM_API long getLong(int position){	const auto iterator = views.find(selectedView);
-	if (iterator != views.end()) {
-		return *reinterpret_cast<long*>(iterator->second.first + position);
-	}	return -1;}RWFM_API long waitNewLong(int position, long current, long parkNanos, long timeoutMills){	auto result = -1l;	const auto iterator = views.find(selectedView);
-	if (iterator != views.end()) {		PreciseTimer timer;		while (timer.elapsed() < timeoutMills) {			result = *reinterpret_cast<long*>(iterator->second.first + position);			if (result != current) {				return result;			}			timer.wait(parkNanos);		}	}	return result;}
+RWFM_API void getData(int position, char buffer[], int offset, int length)
+{
+        CopyMemory(buffer + offset, selectedView + position, length);
+}
+
+RWFM_API void setData(int position, char buffer[], int offset, int length)
+{
+        CopyMemory(selectedView + position, buffer + offset, length);
+}
+
+RWFM_API long getAndAddLong(int position, long delta)
+{
+        return InterlockedExchangeAdd(getLongPtr(position), delta);
+}
+
+RWFM_API long getLong(int position)
+{
+        return *getLongPtr(position);
+}
+
+RWFM_API long waitNewLong(int position, long current, long parkMills, long timeoutMills)
+{
+        auto result = -1l;
+        PreciseTimer timer;
+
+        while (timer.elapsed() < timeoutMills) {
+                result = getLong(position);
+                if (result != current) {
+                        break;
+                }
+                timer.wait(parkMills);
+        }
+
+        return result;
+}

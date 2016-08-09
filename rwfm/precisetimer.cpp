@@ -12,7 +12,7 @@ PreciseTimer::PreciseTimer()
 
 void PreciseTimer::wait(int timeout)
 {
-        Sleep(timeout)
+	Sleep(timeout);
 }
 
 int PreciseTimer::elapsed()
@@ -23,5 +23,5 @@ int PreciseTimer::elapsed()
 	const auto result = (mTimeout.QuadPart - start.QuadPart) / mFrequency;
 	mTimeout = start;
 	
-	return result;
+	return static_cast<int>(result);
 }

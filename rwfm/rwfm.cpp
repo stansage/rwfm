@@ -64,7 +64,7 @@ RWFM_API bool closeView()
         if (iterator != viewHandles.end()) {
                 UnmapViewOfFile(selectedView);
                 CloseHandle(iterator->second);
-                views.erase(iterator);
+                viewHandles.erase(iterator);
                 selectedView = nullptr;
                 result = true;
         }

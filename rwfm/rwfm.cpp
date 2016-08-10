@@ -3,8 +3,7 @@
 
 namespace
 {
-	char * selectedView = 0;
-	std::unordered_map<view_t, HANDLE> viewHandles;
+	std::unordered_map<ulong_t, HANDLE> viewHandles;
 
 	int raiseError(int * error)
 	{
@@ -12,11 +11,6 @@ namespace
 			*error = GetLastError();
 		}
 		return 0;
-	}
-
-	long_t * getLongPtr(int position)
-	{
-		return reinterpret_cast<long_t*>(selectedView + position);
 	}
 
 	std::int64_t cpuFrequency()
@@ -27,7 +21,7 @@ namespace
 	}
 }
 
-RWFM_API view_t openView(const TCHAR name[], int * error)
+RWFM_API ulong_t openView(const TCHAR name[], int * error)
 {
 	if (name == nullptr) {
 		return raiseError(error);
@@ -44,63 +38,50 @@ RWFM_API view_t openView(const TCHAR name[], int * error)
 		return raiseError(error);
 	}
 
-	const auto result = reinterpret_cast<view_t>(buffer);
-	selectedView = reinterpret_cast<char*>(result);
+	const auto result = reinterpret_cast<ulong_t>(buffer);
 	viewHandles[result] = handle;
 
 	return result;
 }
 
-RWFM_API bool selectView(view_t view)
+RWFM_API bool closeView(ulong_t view)
 {
 	auto result = false;
 	const auto iterator = viewHandles.find(view);
 
 	if (iterator != viewHandles.end()) {
-		selectedView = reinterpret_cast<char*>(view);
-		result = true;
-	}
-
-	return result;
-}
-
-RWFM_API bool closeView()
-{
-	auto result = false;
-	const auto iterator = viewHandles.find(reinterpret_cast<view_t>(selectedView));
-
-	if (iterator != viewHandles.end()) {
-		UnmapViewOfFile(selectedView);
+		UnmapViewOfFile(reinterpret_cast<void*>(view));
 		CloseHandle(iterator->second);
 		viewHandles.erase(iterator);
-		selectedView = nullptr;
 		result = true;
 	}
 
 	return result;
 }
 
-RWFM_API void getData(int position, char buffer[], int offset, int length)
+RWFM_API void getData(ulong_t view, int position, char buffer[], int offset, int length)
 {
-	CopyMemory(buffer + offset, selectedView + position, length);
+	CopyMemory(buffer + offset, reinterpret_cast<char*>(view) + position, length);
 }
 
-RWFM_API void setData(int position, char buffer[], int offset, int length)
+RWFM_API void setData(ulong_t view, int position, char buffer[], int offset, int length)
 {
-	CopyMemory(selectedView + position, buffer + offset, length);
+	CopyMemory(reinterpret_cast<char*>(view) + position, buffer + offset, length);
 }
 
-RWFM_API long_t getAndAddLong(int position, long_t delta)
+RWFM_API long_t getAndAddLong(ulong_t view, int position, long_t delta)
 {
-	return InterlockedExchangeAdd(getLongPtr(position), delta);
+	const auto memory = reinterpret_cast<char*>(view) + position;
+	return InterlockedExchangeAdd(reinterpret_cast<ulong_t*>(memory), delta);
 }
 
-RWFM_API long_t getLong(int position)
+RWFM_API long_t getLong(ulong_t view, int position)
 {
-	return *getLongPtr(position);
+	const auto memory = reinterpret_cast<char*>(view) + position;
+	return *reinterpret_cast<long_t*>(memory);
 }
 
-RWFM_API long_t waitNewLong(int position, long_t current, int parkMills, int timeoutMills)
+RWFM_API long_t waitNewLong(ulong_t view, int position, long_t current, int parkMills, int timeoutMills)
 {
 	static const auto frequency = cpuFrequency();
 	auto result = long_t(-1);
@@ -110,7 +91,8 @@ RWFM_API long_t waitNewLong(int position, long_t current, int parkMills, int tim
 	const auto delay = qpc.QuadPart + timeoutMills * frequency;
 	
 	while (QueryPerformanceCounter(&qpc) && delay > qpc.QuadPart) {
-		result = getLong(position);
+		const auto memory = reinterpret_cast<char*>(view) + position;
+		result = *reinterpret_cast<long_t*>(memory);
 		if (result != current) {
 			break;
 		}

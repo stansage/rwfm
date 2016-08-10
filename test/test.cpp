@@ -28,10 +28,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (view1 == 0) {
 					std::cerr << "Error1: " << error[0] << std::endl;
 				} else {
-					selectView(view0);
-					closeView();
-					selectView(view1);
-					closeView();
+					closeView(view0);
+					closeView(view1);
 				}
 				CloseHandle(handle1);
 			}
@@ -43,27 +41,27 @@ int _tmain(int argc, _TCHAR* argv[])
 			std::cerr << "Error: " << error[0] << std::endl;
 		} else {
 			char buffer[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-			setData(123, buffer, 3, 4);
+			setData(view, 123, buffer, 3, 4);
 			ZeroMemory(buffer, 10);
 
-			getData(123, buffer, 0, 4);
+			getData(view, 123, buffer, 0, 4);
 			if (buffer[0] != 3 || buffer[1] != 4 || buffer[2] != 5 || buffer[3] != 6) {
 				std::cerr << "Fail: " << int(buffer[0]) << int(buffer[1]) << int(buffer[2]) << int(buffer[3]) << std::endl;
 			}
 
-			const auto current = getLong(123);
-			auto value = waitNewLong(123, current, 10, 1000);
+			const auto current = getLong(view, 123);
+			auto value = waitNewLong(view, 123, current, 10, 1000);
 
 			if (value != current) {
 				std::cerr << "Fail: " << value << " != " << current << std::endl;
 			} else {
-				std::thread thread([] {
+				std::thread thread([view] {
 					Sleep(13000);
 					char buffer[] = { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-					setData(123, buffer, 4, 3);
+					setData(view, 123, buffer, 4, 3);
 				});
 				
-				value = waitNewLong(123, current, 0, 30000);
+				value = waitNewLong(view, 123, current, 0, 90000);
 				if (value == current) {
 					std::cerr << "Fail: " << value << " == " << current << std::endl;
 				}

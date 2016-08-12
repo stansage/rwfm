@@ -75,10 +75,22 @@ RWFM_API long_t getAndAddLong(ulong_t view, int position, long_t delta)
 	return InterlockedExchangeAdd(reinterpret_cast<ulong_t*>(memory), delta);
 }
 
+RWFM_API int_t getAndAddInt(ulong_t view, int position, int_t delta)
+{
+	const auto memory = reinterpret_cast<char*>(view) + position;
+	return InterlockedExchangeAdd(reinterpret_cast<uint_t*>(memory), delta);
+}
+
 RWFM_API long_t getLong(ulong_t view, int position)
 {
 	const auto memory = reinterpret_cast<char*>(view) + position;
 	return *reinterpret_cast<long_t*>(memory);
+}
+
+RWFM_API void setInt(ulong_t view, int position, int value)
+{
+	const auto memory = reinterpret_cast<char*>(view) + position;
+	*reinterpret_cast<int_t*>(memory) = value;
 }
 
 RWFM_API long_t waitNewLong(ulong_t view, int position, long_t current, int parkMills, int timeoutMills)
